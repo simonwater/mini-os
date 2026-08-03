@@ -1,12 +1,16 @@
 [package]
-name = "mini-os"
+name = "mini_os"
 version = "0.1.0"
 edition = "2024"
 
 [[bin]]
-name = "mini-os"
+name = "mini_os"
 test = true
 bench = false
+
+[[test]]
+name = "should_panic"
+harness = false
 
 [dependencies]
 bootloader = "0.9"

@@ -69,6 +69,7 @@ pub fn test_panic_handler(info: &PanicInfo) -> ! {
     hlt_loop()
 }
 
+/// 让CPU 进入休眠 (Sleep)，功耗接近 0，不再浪费 CPU 周期，直到下一个硬件中断到达
 pub fn hlt_loop() -> ! {
     loop {
         x86_64::instructions::hlt();

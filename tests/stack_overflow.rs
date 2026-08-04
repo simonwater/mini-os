@@ -27,7 +27,7 @@ extern "x86-interrupt" fn test_double_fault_handler(
 ) -> ! {
     serial_println!("[ok]");
     exit_qemu(QemuExitCode::Success);
-    loop {}
+    mini_os::hlt_loop()
 }
 
 fn init_test_idt() {

@@ -13,7 +13,7 @@ use mini_os::println;
 pub extern "C" fn _start() -> ! {
     test_main();
 
-    loop {}
+    mini_os::hlt_loop()
 }
 
 #[panic_handler]

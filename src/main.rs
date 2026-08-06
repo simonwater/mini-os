@@ -13,35 +13,35 @@
 use bootloader::{BootInfo, entry_point};
 use core::panic::PanicInfo;
 use mini_os::println;
-use x86_64::structures::paging::PageTable;
+use x86_64::structures::paging::Page;
 
 // 宏内部定义了真正的低级_start入口点。并会对函数进行类型检查，
 // 避免函数签名错误（增加一个参数或改变参数类型）时只在运行时发生失败。
 entry_point!(kernel_main);
 
 fn kernel_main(boot_info: &'static BootInfo) -> ! {
-    use mini_os::memory::translate_addr;
+    use mini_os::memory;
     use x86_64::VirtAddr;
 
     println!("Welcome To {}", "Mini-OS!");
     mini_os::init();
 
     let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
-    let addresses = [
-        // the identity-mapped vga buffer page
-        0xb8000,
-        // some code page
-        0x201008,
-        // some stack page
-        0x0100_0020_1a10,
-        // virtual address mapped to physical address 0
-        boot_info.physical_memory_offset,
-    ];
-    for &address in &addresses {
-        let virt = VirtAddr::new(address);
-        let phys = unsafe { translate_addr(virt, phys_mem_offset) };
-        println!("{:?} -> {:?}", virt, phys);
-    }
+    let mut mapper = unsafe { memory::init(phys_mem_offset) };
+    let mut frame_allocator =
+        unsafe { memory::BootInfoFrameAllocator::init(&boot_info.memory_map) };
+
+    // 把虚拟地址virt处的页面映射到物理地址 0xb8000
+    let virt = VirtAddr::new(0xdeadbeaf000);
+    let page = Page::containing_address(virt);
+    memory::create_example_mapping(page, &mut mapper, &mut frame_allocator);
+
+    // 通过新映射往缓冲区写文字
+    let start_virt = page.start_address();
+    let page_ptr: *mut u64 = start_virt.as_mut_ptr();
+    unsafe {
+        page_ptr.offset(400).write_volatile(0x_f021_f077_f065_f04e);
+    };
 
     #[cfg(test)]
     test_main();

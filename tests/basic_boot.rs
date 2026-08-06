@@ -9,7 +9,9 @@
 use core::panic::PanicInfo;
 use mini_os::println;
 
-#[unsafe(no_mangle)] // don't mangle the name of this function
+// 因为链接器会寻找一个名为 `_start` 的函数，所以这个函数就是入口点
+// 默认命名为 `_start`
+#[unsafe(no_mangle)] // 不重整函数名
 pub extern "C" fn _start() -> ! {
     test_main();
 

@@ -11,6 +11,7 @@
 
 pub mod gdt;
 pub mod interrupts;
+pub mod memory;
 pub mod serial;
 pub mod vga_buffer;
 
@@ -76,13 +77,18 @@ pub fn hlt_loop() -> ! {
     }
 }
 
-/// 包中的单元测试运行的启动入口
 #[cfg(test)]
-#[unsafe(no_mangle)]
-pub extern "C" fn _start() -> ! {
+use bootloader::{BootInfo, entry_point};
+
+#[cfg(test)]
+entry_point!(test_kernel_main);
+
+/// 包中的单元测试运行的启动入口（`cargo test`）
+#[cfg(test)]
+fn test_kernel_main(_boot_info: &'static BootInfo) -> ! {
     init();
     test_main();
-    hlt_loop()
+    hlt_loop();
 }
 
 #[cfg(test)]

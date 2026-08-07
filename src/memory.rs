@@ -122,3 +122,27 @@ fn translate_addr_inner(addr: VirtAddr, physical_memory_offset: VirtAddr) -> Opt
     let phys = frame.start_address() + u64::from(addr.page_offset());
     Some(phys)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bootloader::BootInfo;
+
+    fn _simple_map_test(boot_info: &'static BootInfo) {
+        let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
+        let mut mapper = unsafe { init(phys_mem_offset) };
+        let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_map) };
+
+        // 把虚拟地址virt处的页面映射到物理地址 0xb8000
+        let virt = VirtAddr::new(0xdeadbeaf000);
+        let page = Page::containing_address(virt);
+        create_example_mapping(page, &mut mapper, &mut frame_allocator);
+
+        // 通过新映射往缓冲区写文字
+        let start_virt = page.start_address();
+        let page_ptr: *mut u64 = start_virt.as_mut_ptr();
+        unsafe {
+            page_ptr.offset(400).write_volatile(0x_f021_f077_f065_f04e);
+        };
+    }
+}

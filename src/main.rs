@@ -10,16 +10,19 @@
 // 将自定义测试框架生成的函数的名称更改为与main不同的名称，该函数需要在_start中调用
 #![reexport_test_harness_main = "test_main"]
 
+extern crate alloc;
+
+use alloc::{boxed::Box, rc::Rc, vec, vec::Vec};
 use bootloader::{BootInfo, entry_point};
 use core::panic::PanicInfo;
 use mini_os::println;
-use x86_64::structures::paging::Page;
 
 // 宏内部定义了真正的低级_start入口点。并会对函数进行类型检查，
 // 避免函数签名错误（增加一个参数或改变参数类型）时只在运行时发生失败。
 entry_point!(kernel_main);
 
 fn kernel_main(boot_info: &'static BootInfo) -> ! {
+    use mini_os::allocator;
     use mini_os::memory;
     use x86_64::VirtAddr;
 
@@ -31,17 +34,31 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     let mut frame_allocator =
         unsafe { memory::BootInfoFrameAllocator::init(&boot_info.memory_map) };
 
-    // 把虚拟地址virt处的页面映射到物理地址 0xb8000
-    let virt = VirtAddr::new(0xdeadbeaf000);
-    let page = Page::containing_address(virt);
-    memory::create_example_mapping(page, &mut mapper, &mut frame_allocator);
+    allocator::init_heap(&mut mapper, &mut frame_allocator).expect("heap initialization failed");
 
-    // 通过新映射往缓冲区写文字
-    let start_virt = page.start_address();
-    let page_ptr: *mut u64 = start_virt.as_mut_ptr();
-    unsafe {
-        page_ptr.offset(400).write_volatile(0x_f021_f077_f065_f04e);
-    };
+    // 堆上分配数字
+    let heap_value = Box::new(42);
+    println!("heap_value at: {:p}", heap_value);
+
+    // 使用动态数组
+    let mut vec = Vec::with_capacity(500);
+    for i in 1..=500 {
+        vec.push(i);
+    }
+    println!("vec at: {:p}", vec.as_slice());
+
+    // 引用计数
+    let reference_counted = Rc::new(vec![1, 2, 3]);
+    let cloned_reference = reference_counted.clone();
+    println!(
+        "current reference count is {}",
+        Rc::strong_count(&cloned_reference)
+    );
+    core::mem::drop(reference_counted);
+    println!(
+        "reference count is {} now",
+        Rc::strong_count(&cloned_reference)
+    );
 
     #[cfg(test)]
     test_main();

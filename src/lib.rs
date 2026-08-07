@@ -9,6 +9,9 @@
 // x86-interrupt 并不是稳定特性，需要手动启用
 #![feature(abi_x86_interrupt)]
 
+extern crate alloc;
+
+pub mod allocator;
 pub mod gdt;
 pub mod interrupts;
 pub mod memory;

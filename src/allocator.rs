@@ -1,9 +1,11 @@
 pub mod bump;
+pub mod linked_list;
 
 use alloc::alloc::{GlobalAlloc, Layout};
-use bump::BumpAllocator;
+//use bump::BumpAllocator;
 use core::ptr::null_mut;
 //use linked_list_allocator::LockedHeap;
+use linked_list::LinkedListAllocator;
 use x86_64::{
     VirtAddr,
     structures::paging::{
@@ -84,4 +86,4 @@ unsafe impl GlobalAlloc for Dummy {
 // static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 #[global_allocator]
-static ALLOCATOR: Locked<BumpAllocator> = Locked::new(BumpAllocator::new());
+static ALLOCATOR: Locked<LinkedListAllocator> = Locked::new(LinkedListAllocator::new());

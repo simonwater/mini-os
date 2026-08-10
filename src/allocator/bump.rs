@@ -30,6 +30,12 @@ impl BumpAllocator {
     }
 }
 
+/// bump 分配器：
+/// 1. 维护一个 next 指针，开始指向堆起始地址，每次分配内存时，next值增加相应的分配大小
+/// 2. next 到达末尾，不再有可以分配的内存时，再次请求分配将导致内存不足错误。
+/// 3. 维护一个已分配数量 allocations，每次调用 alloc 加1，调用 dealloc 减1。
+/// 4. 当allocations计数为0时，next指针重置回指向堆起始地址
+/// 局限： 只能一次性释放全部内存，意味着单个长期存在的分配就可以阻止内存重用。
 unsafe impl GlobalAlloc for Locked<BumpAllocator> {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         let mut bump = self.lock(); // 获取可变引用

@@ -16,6 +16,7 @@ use alloc::{boxed::Box, rc::Rc, vec, vec::Vec};
 use bootloader::{BootInfo, entry_point};
 use core::panic::PanicInfo;
 use mini_os::println;
+use mini_os::task::{Task, keyboard, simple_executor::SimpleExecutor};
 
 // 宏内部定义了真正的低级_start入口点。并会对函数进行类型检查，
 // 避免函数签名错误（增加一个参数或改变参数类型）时只在运行时发生失败。
@@ -59,10 +60,24 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
         Rc::strong_count(&cloned_reference)
     );
 
+    let mut executor = SimpleExecutor::new();
+    executor.spawn(Task::new(example_task()));
+    executor.spawn(Task::new(keyboard::print_keypresses()));
+    executor.run();
+
     #[cfg(test)]
     test_main();
     println!("It did not crash!");
     mini_os::hlt_loop()
+}
+
+async fn async_number() -> u32 {
+    0
+}
+
+async fn example_task() {
+    let number = async_number().await;
+    println!("async number: {}", number);
 }
 
 /// 这个函数将在 panic 时被调用

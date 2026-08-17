@@ -91,30 +91,11 @@ extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFr
 
 extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStackFrame) {
     // 键盘控制器在 获取扫描码 之前，不会发送下一个中断
-    use pc_keyboard::{DecodedKey, HandleControl, Keyboard, ScancodeSet1, layouts};
-    use spin::Mutex;
     use x86_64::instructions::port::Port;
 
-    static KEYBOARD: Mutex<Keyboard<layouts::Us104Key, ScancodeSet1>> = Mutex::new(Keyboard::new(
-        ScancodeSet1::new(),
-        layouts::Us104Key,
-        HandleControl::Ignore,
-    ));
-
-    let mut keyboard = KEYBOARD.lock();
     let mut port = Port::new(0x60);
-
     let scancode: u8 = unsafe { port.read() }; // 获取扫描码
-    // 扫描码转化为KeyEvent，KeyEvent 包括了触发本次中断的按键信息，以及子动作是按下还是释放
-    if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
-        // KeyEvent转换为人类可读的字符
-        if let Some(key) = keyboard.process_keyevent(key_event) {
-            match key {
-                DecodedKey::Unicode(character) => print!("{}", character),
-                DecodedKey::RawKey(key) => print!("{:?}", key),
-            }
-        }
-    }
+    crate::task::keyboard::add_scancode(scancode);
 
     unsafe {
         PICS.lock()

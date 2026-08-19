@@ -6,7 +6,6 @@
 //!     - 使用硬件支持的“原子指令”（Atomic Instructions）
 
 use crate::hlt_loop;
-use crate::print;
 use crate::{gdt, println};
 use lazy_static::lazy_static;
 use pic8259::ChainedPics;
@@ -79,7 +78,7 @@ extern "x86-interrupt" fn double_fault_handler(
 }
 
 extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
-    print!(".");
+    //print!(".");
 
     // 发送“中断结束” (EOI) 信号
     // 如果不发送EOI信号，PIC会认为cpu还在一直处理第一个计时器中断，然后暂停后续的中断信号发送，直到接收到EOI信号。

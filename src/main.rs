@@ -36,6 +36,7 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
         unsafe { memory::BootInfoFrameAllocator::init(&boot_info.memory_map) };
     allocator::init_heap(&mut mapper, &mut frame_allocator).expect("heap initialization failed");
 
+    keyboard::init();
     // 堆上分配数字
     let heap_value = Box::new(42);
     println!("heap_value at: {:p}", heap_value);
@@ -66,17 +67,28 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 
     let mut executor = Executor::new();
     executor.spawn(Task::new(example_task()));
-    executor.spawn(Task::new(keyboard::print_keypresses()));
+    executor.spawn(Task::new(input()));
     executor.run()
 }
 
+pub async fn input() {
+    loop {
+        let line = keyboard::readln().await;
+        println!("output: {}", line);
+    }
+}
+
 async fn async_number() -> u32 {
-    0
+    1
 }
 
 async fn example_task() {
-    let number = async_number().await;
-    println!("async number: {}", number);
+    let mut number1 = 0;
+    for _ in 0..40 {
+        number1 += async_number().await;
+    }
+    let number2 = async { number1 + 2 }.await;
+    println!("async number: {}", number2);
 }
 
 /// 这个函数将在 panic 时被调用

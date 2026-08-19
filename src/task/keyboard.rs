@@ -1,11 +1,13 @@
 use crate::print;
 use crate::println;
+use alloc::string::String;
 use conquer_once::spin::OnceCell;
 use core::{
     pin::Pin,
     task::{Context, Poll},
 };
 use crossbeam_queue::ArrayQueue;
+use futures_util::future;
 use futures_util::stream::Stream;
 use futures_util::stream::StreamExt;
 use futures_util::task::AtomicWaker;
@@ -32,16 +34,18 @@ pub(crate) fn add_scancode(scancode: u8) {
     }
 }
 
+pub fn init() {
+    SCANCODE_QUEUE
+        .try_init_once(|| ArrayQueue::new(100))
+        .expect("ScancodeStream::new should only be called once");
+}
+
 pub struct ScancodeStream {
     _private: (), // 防止从模块外部构造该结构体
 }
 
 impl ScancodeStream {
     pub fn new() -> Self {
-        SCANCODE_QUEUE
-            .try_init_once(|| ArrayQueue::new(100))
-            .expect("ScancodeStream::new should only be called once");
-
         ScancodeStream { _private: () }
     }
 }
@@ -49,6 +53,8 @@ impl ScancodeStream {
 impl Stream for ScancodeStream {
     type Item = u8;
 
+    /// 典型实现方式：直接读，能读到就返回ready，不能读到则更新waker，然后返回peding，
+    /// 不会记录状态。能否读到即是状态。
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let queue = SCANCODE_QUEUE.try_get().expect("not initialized");
         if let Some(scancode) = queue.pop() {
@@ -56,6 +62,7 @@ impl Stream for ScancodeStream {
         }
 
         WAKER.register(&cx.waker());
+        // 双重验证，防止更新waker的间隙又有新数据到了，导致有效数据可能再也无法被读取到
         match queue.pop() {
             Some(scancode) => {
                 WAKER.take();
@@ -66,24 +73,45 @@ impl Stream for ScancodeStream {
     }
 }
 
-pub async fn print_keypresses() {
-    let mut scancodes = ScancodeStream::new();
+pub fn keyboard_stream() -> impl Stream<Item = char> {
+    let scancodes = ScancodeStream::new();
     let mut keyboard = Keyboard::new(
         ScancodeSet1::new(),
         layouts::Us104Key,
         HandleControl::Ignore,
     );
-
-    while let Some(scancode) = scancodes.next().await {
+    scancodes.filter_map(move |scancode| {
         // 扫描码转化为KeyEvent，KeyEvent 包括了触发本次中断的按键信息，以及子动作是按下还是释放
         if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
             // KeyEvent转换为人类可读的字符
             if let Some(key) = keyboard.process_keyevent(key_event) {
                 match key {
-                    DecodedKey::Unicode(character) => print!("{}", character),
-                    DecodedKey::RawKey(key) => print!("{:?}", key),
+                    DecodedKey::Unicode(character) => return future::ready(Some(character)),
+                    DecodedKey::RawKey(_) => {}
                 }
             }
         }
+        future::ready(None)
+    })
+}
+
+pub async fn print_keypresses() {
+    let mut input = keyboard_stream();
+
+    while let Some(scancode) = input.next().await {
+        print!("{}", scancode)
     }
+}
+
+pub async fn readln() -> String {
+    let mut input = keyboard_stream();
+    let mut s = String::with_capacity(8);
+    while let Some(c) = input.next().await {
+        print!("{}", c);
+        if c == '\n' {
+            return s;
+        }
+        s.push(c);
+    }
+    s
 }

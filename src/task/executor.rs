@@ -28,34 +28,6 @@ impl Executor {
         self.task_queue.push(task_id).expect("queue full");
     }
 
-    fn run_ready_tasks(&mut self) {
-        // 解构 `self` 来避免借用检查器报错
-        let Self {
-            tasks,
-            task_queue,
-            waker_cache,
-        } = self;
-
-        while let Some(task_id) = task_queue.pop() {
-            let task = match tasks.get_mut(&task_id) {
-                Some(task) => task,
-                None => continue, // 任务不存在
-            };
-            let waker = waker_cache
-                .entry(task_id)
-                .or_insert_with(|| TaskWaker::new(task_id, task_queue.clone()));
-            let mut context = Context::from_waker(waker);
-            match task.poll(&mut context) {
-                Poll::Ready(()) => {
-                    // 任务完成 -> 移除它和它缓存的唤醒器
-                    tasks.remove(&task_id);
-                    waker_cache.remove(&task_id);
-                }
-                Poll::Pending => {}
-            }
-        }
-    }
-
     pub fn run(&mut self) -> ! {
         loop {
             self.run_ready_tasks();
@@ -63,9 +35,35 @@ impl Executor {
         }
     }
 
+    fn run_ready_tasks(&mut self) {
+        while let Some(task_id) = self.task_queue.pop() {
+            let task = match self.tasks.get_mut(&task_id) {
+                Some(task) => task,
+                None => continue, // 任务不存在
+            };
+            let waker = self
+                .waker_cache
+                .entry(task_id)
+                .or_insert_with(|| TaskWaker::new(task_id, self.task_queue.clone()));
+            let mut context = Context::from_waker(waker);
+            // 轮询任务
+            match task.poll(&mut context) {
+                Poll::Ready(()) => {
+                    // 任务完成 -> 移除任务和缓存的唤醒器
+                    self.tasks.remove(&task_id);
+                    self.waker_cache.remove(&task_id);
+                }
+                Poll::Pending => {}
+            }
+        }
+    }
+
+    /// 使用 HLT 指令让 CPU 进入低功耗挂起状态。当硬件中断触发时，CPU 离开挂起状态，
+    /// 跳去执行对应的中断服务程序（ISR）。ISR 处理完毕后返回，CPU 继续执行 HLT 后的下一条指令。
     fn sleep_if_idle(&self) {
         use x86_64::instructions::interrupts::{self, enable_and_hlt};
 
+        // 让条件判断到挂起指令成为一个原子操作，防止中间有新数据到达条件已经不成立而 hlt 仍然被执行
         interrupts::disable();
         if self.task_queue.is_empty() {
             enable_and_hlt();
